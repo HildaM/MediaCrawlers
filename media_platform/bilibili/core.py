@@ -37,12 +37,13 @@ class BilibiliCrawler(AbstractCrawler):
         self.index_url = "https://www.bilibili.com"
         self.user_agent = utils.get_user_agent()
 
-    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str):
+    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str, cookies: str):
         self.platform = platform
         self.login_type = login_type
         self.crawler_type = crawler_type
         self.start_page = start_page
         self.keyword = keyword
+        self.cookies = cookies if cookies is not None else config.COOKIES
 
     async def start(self):
         playwright_proxy_format, httpx_proxy_format = None, None
@@ -74,7 +75,7 @@ class BilibiliCrawler(AbstractCrawler):
                     login_phone="",  # your phone number
                     browser_context=self.browser_context,
                     context_page=self.context_page,
-                    cookie_str=config.COOKIES
+                    cookie_str=self.cookies
                 )
                 await login_obj.begin()
                 await self.bili_client.update_cookies(browser_context=self.browser_context)

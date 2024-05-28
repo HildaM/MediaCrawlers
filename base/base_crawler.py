@@ -6,7 +6,7 @@ from playwright.async_api import BrowserContext, BrowserType
 
 class AbstractCrawler(ABC):
     @abstractmethod
-    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str):
+    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str, cookies: str):
         pass
 
     @abstractmethod
@@ -19,7 +19,7 @@ class AbstractCrawler(ABC):
 
     @abstractmethod
     async def launch_browser(self, chromium: BrowserType, playwright_proxy: Optional[Dict], user_agent: Optional[str],
-                             headless: bool = True) -> BrowserContext:
+                            headless: bool = True) -> BrowserContext:
         pass
 
 
