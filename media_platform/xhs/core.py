@@ -14,10 +14,10 @@ from store import xhs as xhs_store
 from tools import utils
 from var import crawler_type_var
 
-from .client import XHSClient
+from .client import XiaoHongShuClient
 from .exception import DataFetchError
 from .field import SearchSortType
-from .login import XHSLogin
+from .login import XiaoHongShuLogin
 
 
 class XiaoHongShuCrawler(AbstractCrawler):
@@ -25,17 +25,19 @@ class XiaoHongShuCrawler(AbstractCrawler):
     login_type: str
     crawler_type: str
     context_page: Page
-    xhs_client: XHSClient
+    xhs_client: XiaoHongShuClient
     browser_context: BrowserContext
 
     def __init__(self) -> None:
         self.index_url = "https://www.xiaohongshu.com"
         self.user_agent = utils.get_user_agent()
 
-    def init_config(self, platform: str, login_type: str, crawler_type: str) -> None:
+    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str) -> None:
         self.platform = platform
         self.login_type = login_type
         self.crawler_type = crawler_type
+        self.start_page = start_page
+        self.keyword = keyword
 
     async def start(self) -> None:
         playwright_proxy_format, httpx_proxy_format = None, None
@@ -68,7 +70,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
             # Create a client to interact with the xiaohongshu website.
             self.xhs_client = await self.create_xhs_client(httpx_proxy_format)
             if not await self.xhs_client.pong():
-                login_obj = XHSLogin(
+                login_obj = XiaoHongShuLogin(
                     login_type=self.login_type,
                     login_phone="",  # input your phone number
                     browser_context=self.browser_context,
@@ -97,92 +99,76 @@ class XiaoHongShuCrawler(AbstractCrawler):
         """Search for notes and retrieve their comment information."""
         utils.logger.info("[XiaoHongShuCrawler.search] Begin search xiaohongshu keywords")
         xhs_limit_count = 20  # xhs limit page fixed value
-        for keyword in config.KEYWORDS.split(","):
+        if config.CRAWLER_MAX_NOTES_COUNT < xhs_limit_count:
+            config.CRAWLER_MAX_NOTES_COUNT = xhs_limit_count
+        start_page = self.start_page
+        for keyword in self.keyword.split(","):
             utils.logger.info(f"[XiaoHongShuCrawler.search] Current search keyword: {keyword}")
             page = 1
-            while page * xhs_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
-                note_id_list: List[str] = []
-                notes_res = await self.xhs_client.get_note_by_keyword(
-                    keyword=keyword,
-                    page=page,
-                    sort=SearchSortType(config.SORT_TYPE) if config.SORT_TYPE!='' else SearchSortType.GENERAL,
-                )
-                utils.logger.info(f"[XiaoHongShuCrawler.search] Search notes res:{notes_res}")
-                semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-                task_list = [
-                    self.get_note_detail(post_item.get("id"), semaphore)
-                    for post_item in notes_res.get("items", {})
-                    if post_item.get('model_type') not in ('rec_query', 'hot_query')
-                ]
-                note_details = await asyncio.gather(*task_list)
-                for note_detail in note_details:
-                    if note_detail is not None:
-                        await xhs_store.update_xhs_note(note_detail)
-                        note_id_list.append(note_detail.get("note_id"))
-                page += 1
-                utils.logger.info(f"[XiaoHongShuCrawler.search] Note details: {note_details}")
-                await self.batch_get_note_comments(note_id_list)
-    
+            while (page - start_page + 1) * xhs_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
+                if page < start_page:
+                    utils.logger.info(f"[XiaoHongShuCrawler.search] Skip page {page}")
+                    page += 1
+                    continue
+
+                try:
+                    note_id_list: List[str] = []
+                    notes_res = await self.xhs_client.get_note_by_keyword(
+                        keyword=keyword,
+                        page=page,
+                        sort=SearchSortType(config.SORT_TYPE) if config.SORT_TYPE != '' else SearchSortType.GENERAL,
+                    )
+                    utils.logger.info(f"[XiaoHongShuCrawler.search] Search notes res:{notes_res}")
+                    semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+                    task_list = [
+                        self.get_note_detail(post_item.get("id"), semaphore)
+                        for post_item in notes_res.get("items", {})
+                        if post_item.get('model_type') not in ('rec_query', 'hot_query')
+                    ]
+                    note_details = await asyncio.gather(*task_list)
+                    for note_detail in note_details:
+                        if note_detail is not None:
+                            await xhs_store.update_xhs_note(note_detail)
+                            note_id_list.append(note_detail.get("note_id"))
+                    page += 1
+                    utils.logger.info(f"[XiaoHongShuCrawler.search] Note details: {note_details}")
+                    await self.batch_get_note_comments(note_id_list)
+                except DataFetchError:
+                    utils.logger.error("[XiaoHongShuCrawler.search] Get note detail error")
+                    break
+
     async def get_creators_and_notes(self) -> None:
         """Get creator's notes and retrieve their comment information."""
         utils.logger.info("[XiaoHongShuCrawler.get_creators_and_notes] Begin get xiaohongshu creators")
-        xhs_limit_count = 30
-        for creator in config.XHS_CREATOR_ID_LIST:
-            utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] Current creator: {creator}")
-            page = 0
-            cursor = ''
-            has_more_notes = False
-            while page * xhs_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
-                note_id_list: List[str] = []
+        for user_id in config.XHS_CREATOR_ID_LIST:
+            # get creator detail info from web html content
+            createor_info: Dict = await self.xhs_client.get_creator_info(user_id=user_id)
+            if createor_info:
+                await xhs_store.save_creator(user_id, creator=createor_info)
 
-                if page == 0:
-                    # get creator info and notes
-                    creator_and_notes_info = await self.xhs_client.get_creator_info_and_notes(creator)
+            # Get all note information of the creator
+            all_notes_list = await self.xhs_client.get_all_notes_by_creator(
+                user_id=user_id,
+                crawl_interval=random.random(),
+                callback=self.fetch_creator_notes_detail
+            )
 
-                    if creator_and_notes_info == None or not creator_and_notes_info:
-                        utils.logger.error(f"[XiaoHongShuCrawler.get_creators_and_notes] get creator notes error")
-                        continue
+            note_ids = [note_item.get("note_id") for note_item in all_notes_list]
+            await self.batch_get_note_comments(note_ids)
 
-                    notes_res = creator_and_notes_info.get('notes')
-                    # utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] get creator and notes:{notes_res}")
+    async def fetch_creator_notes_detail(self, note_list: List[Dict]):
+        """
+        Concurrently obtain the specified post list and save the data
+        """
+        semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
+        task_list = [
+            self.get_note_detail(post_item.get("note_id"), semaphore) for post_item in note_list
+        ]
 
-                    cursor = creator_and_notes_info.get('cursor')
-                    has_more_notes = creator_and_notes_info.get('has_more_notes')
-
-                    # save creator info
-                    await xhs_store.save_creator(creator, creator_and_notes_info.get('creator'))
-                    utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] save creator info:{creator_and_notes_info.get('creator')}")
-                else:
-                    # get notes
-                    notes = await self.xhs_client.get_notes_by_creator(creator, cursor)
-                    # utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] get notes res:{notes_res}")
-
-                    if notes == None or not notes:
-                        utils.logger.error(f"[XiaoHongShuCrawler.get_creators_and_notes] get creator's notes error")
-                        continue
-
-                    cursor = notes.get('cursor')
-                    has_more_notes = notes.get('has_more_notes')
-                    notes_res = notes.get('notes')
-                    utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] get creator's notes res:{notes_res}")
-
-                semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
-                task_list = [
-                    self.get_note_detail(post_item.get('id'), semaphore)
-                    for post_item in notes_res
-                ]
-                note_details = await asyncio.gather(*task_list)
-                for note_detail in note_details:
-                    if note_detail is not None:
-                        await xhs_store.update_xhs_note(note_detail)
-                        note_id_list.append(note_detail.get('note_id'))
-                page += 1
-
-                utils.logger.info(f"[XiaoHongShuCrawler.get_creators_and_notes] Note details: {note_details}")
-                await self.batch_get_note_comments(note_id_list)
-
-                if not has_more_notes:
-                    break
+        note_details = await asyncio.gather(*task_list)
+        for note_detail in note_details:
+            if note_detail is not None:
+                await xhs_store.update_xhs_note(note_detail)
 
     async def get_specified_notes(self):
         """Get the information and comments of the specified post"""
@@ -211,6 +197,10 @@ class XiaoHongShuCrawler(AbstractCrawler):
 
     async def batch_get_note_comments(self, note_list: List[str]):
         """Batch get note comments"""
+        if not config.ENABLE_GET_COMMENTS:
+            utils.logger.info(f"[XiaoHongShuCrawler.batch_get_note_comments] Crawling comment mode is not enabled")
+            return
+
         utils.logger.info(
             f"[XiaoHongShuCrawler.batch_get_note_comments] Begin batch get note comments, note list: {note_list}")
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
@@ -243,11 +233,11 @@ class XiaoHongShuCrawler(AbstractCrawler):
         }
         return playwright_proxy, httpx_proxy
 
-    async def create_xhs_client(self, httpx_proxy: Optional[str]) -> XHSClient:
+    async def create_xhs_client(self, httpx_proxy: Optional[str]) -> XiaoHongShuClient:
         """Create xhs client"""
         utils.logger.info("[XiaoHongShuCrawler.create_xhs_client] Begin create xiaohongshu API client ...")
         cookie_str, cookie_dict = utils.convert_cookies(await self.browser_context.cookies())
-        xhs_client_obj = XHSClient(
+        xhs_client_obj = XiaoHongShuClient(
             proxies=httpx_proxy,
             headers={
                 "User-Agent": self.user_agent,

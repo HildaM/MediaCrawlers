@@ -68,13 +68,24 @@ class DouYinLogin(AbstractLogin):
         utils.logger.info(f"[DouYinLogin.begin] Login successful then wait for {wait_redirect_seconds} seconds redirect ...")
         await asyncio.sleep(wait_redirect_seconds)
 
-    @retry(stop=stop_after_attempt(20), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
+    @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
     async def check_login_state(self):
         """Check if the current login status is successful and return True otherwise return False"""
         current_cookie = await self.browser_context.cookies()
         _, cookie_dict = utils.convert_cookies(current_cookie)
+
+        for page in self.browser_context.pages:
+            try:
+                local_storage = await page.evaluate("() => window.localStorage")
+                if local_storage.get("HasUserLogin", "") == "1":
+                    return True
+            except Exception as e:
+                # utils.logger.warn(f"[DouYinLogin] check_login_state waring: {e}")
+                await asyncio.sleep(0.1)
+
         if cookie_dict.get("LOGIN_STATUS") == "1":
             return True
+
         return False
 
     async def popup_login_dialog(self):
@@ -101,11 +112,8 @@ class DouYinLogin(AbstractLogin):
             utils.logger.info("[DouYinLogin.login_by_qrcode] login qrcode not found please confirm ...")
             sys.exit()
 
-        # show login qrcode
-        # utils.show_qrcode(base64_qrcode_img)
         partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
         asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
-        utils.show_qrcode(base64_qrcode_img)
         await asyncio.sleep(2)
 
     async def login_by_mobile(self):

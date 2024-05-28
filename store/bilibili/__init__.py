@@ -7,7 +7,6 @@ from typing import List
 
 import config
 
-from .bilibili_store_db_types import *
 from .bilibili_store_impl import *
 
 
@@ -63,10 +62,12 @@ async def batch_update_bilibili_video_comments(video_id: str, comments: List[Dic
 
 async def update_bilibili_video_comment(video_id: str, comment_item: Dict):
     comment_id = str(comment_item.get("rpid"))
+    parent_comment_id = str(comment_item.get("parent", 0))
     content: Dict = comment_item.get("content")
     user_info: Dict = comment_item.get("member")
     save_comment_item = {
         "comment_id": comment_id,
+        "parent_comment_id": parent_comment_id,
         "create_time": comment_item.get("ctime"),
         "video_id": str(video_id),
         "content": content.get("message"),

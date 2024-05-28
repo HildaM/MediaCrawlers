@@ -10,15 +10,30 @@ import pathlib
 from typing import Dict
 
 import aiofiles
-from tortoise.contrib.pydantic import pydantic_model_creator
 
 from base.base_crawler import AbstractStore
 from tools import utils
 from var import crawler_type_var
 
 
+def calculate_number_of_files(file_store_path: str) -> int:
+    """计算数据保存文件的前部分排序数字，支持每次运行代码不写到同一个文件中
+    Args:
+        file_store_path;
+    Returns:
+        file nums
+    """
+    if not os.path.exists(file_store_path):
+        return 1
+    try:
+        return max([int(file_name.split("_")[0])for file_name in os.listdir(file_store_path)])+1
+    except ValueError:
+        return 1
+
+
 class KuaishouCsvStoreImplement(AbstractStore):
     csv_store_path: str = "data/kuaishou"
+    file_count:int=calculate_number_of_files(csv_store_path)
 
     def make_save_file_name(self, store_type: str) -> str:
         """
@@ -26,10 +41,10 @@ class KuaishouCsvStoreImplement(AbstractStore):
         Args:
             store_type: contents or comments
 
-        Returns: eg: data/kuaishou/search_comments_20240114.csv ...
+        Returns: eg: data/douyin/search_comments_20240114.csv ...
 
         """
-        return f"{self.csv_store_path}/{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.csv"
+        return f"{self.csv_store_path}/{self.file_count}_{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.csv"
 
     async def save_data_to_csv(self, save_item: Dict, store_type: str):
         """
@@ -82,20 +97,17 @@ class KuaishouDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        from .kuaishou_store_db_types import KuaishouVideo
+
+        from .kuaishou_store_sql import (add_new_content,
+                                         query_content_by_content_id,
+                                         update_content_by_content_id)
         video_id = content_item.get("video_id")
-        if not await KuaishouVideo.filter(video_id=video_id).exists():
+        video_detail: Dict = await query_content_by_content_id(content_id=video_id)
+        if not video_detail:
             content_item["add_ts"] = utils.get_current_timestamp()
-            kuaishou_video_pydantic = pydantic_model_creator(KuaishouVideo, name='kuaishouVideoCreate', exclude=('id',))
-            kuaishou_data = kuaishou_video_pydantic(**content_item)
-            kuaishou_video_pydantic.model_validate(kuaishou_data)
-            await KuaishouVideo.create(**kuaishou_data.model_dump())
+            await add_new_content(content_item)
         else:
-            kuaishou_video_pydantic = pydantic_model_creator(KuaishouVideo, name='kuaishouVideoUpdate',
-                                                             exclude=('id', 'add_ts'))
-            kuaishou_data = kuaishou_video_pydantic(**content_item)
-            kuaishou_video_pydantic.model_validate(kuaishou_data)
-            await KuaishouVideo.filter(video_id=video_id).update(**kuaishou_data.model_dump())
+            await update_content_by_content_id(video_id, content_item=content_item)
 
     async def store_comment(self, comment_item: Dict):
         """
@@ -106,26 +118,23 @@ class KuaishouDbStoreImplement(AbstractStore):
         Returns:
 
         """
-        from .kuaishou_store_db_types import KuaishouVideoComment
+        from .kuaishou_store_sql import (add_new_comment,
+                                         query_comment_by_comment_id,
+                                         update_comment_by_comment_id)
         comment_id = comment_item.get("comment_id")
-        if not await KuaishouVideoComment.filter(comment_id=comment_id).exists():
+        comment_detail: Dict = await query_comment_by_comment_id(comment_id=comment_id)
+        if not comment_detail:
             comment_item["add_ts"] = utils.get_current_timestamp()
-            comment_pydantic = pydantic_model_creator(KuaishouVideoComment, name='KuaishouVideoCommentCreate',
-                                                      exclude=('id',))
-            comment_data = comment_pydantic(**comment_item)
-            comment_pydantic.model_validate(comment_data)
-            await KuaishouVideoComment.create(**comment_data.model_dump())
+            await add_new_comment(comment_item)
         else:
-            comment_pydantic = pydantic_model_creator(KuaishouVideoComment, name='KuaishouVideoCommentUpdate',
-                                                      exclude=('id', 'add_ts'))
-            comment_data = comment_pydantic(**comment_item)
-            comment_pydantic.model_validate(comment_data)
-            await KuaishouVideoComment.filter(comment_id=comment_id).update(**comment_data.model_dump())
+            await update_comment_by_comment_id(comment_id, comment_item=comment_item)
 
 
 class KuaishouJsonStoreImplement(AbstractStore):
     json_store_path: str = "data/kuaishou"
     lock = asyncio.Lock()
+    file_count:int=calculate_number_of_files(json_store_path)
+
 
     def make_save_file_name(self, store_type: str) -> str:
         """
@@ -136,7 +145,9 @@ class KuaishouJsonStoreImplement(AbstractStore):
         Returns:
 
         """
-        return f"{self.json_store_path}/{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.json"
+
+
+        return f"{self.json_store_path}/{self.file_count}_{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.json"
 
     async def save_data_to_json(self, save_item: Dict, store_type: str):
         """
@@ -160,7 +171,6 @@ class KuaishouJsonStoreImplement(AbstractStore):
             save_data.append(save_item)
             async with aiofiles.open(save_file_name, 'w', encoding='utf-8') as file:
                 await file.write(json.dumps(save_data, ensure_ascii=False))
-
 
     async def store_content(self, content_item: Dict):
         """

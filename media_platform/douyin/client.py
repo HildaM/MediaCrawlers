@@ -7,6 +7,7 @@ import execjs
 import httpx
 from playwright.async_api import BrowserContext, Page
 
+from base.base_crawler import AbstractApiClient
 from tools import utils
 from var import request_keyword_var
 
@@ -14,7 +15,7 @@ from .exception import *
 from .field import *
 
 
-class DOUYINClient:
+class DOUYINClient(AbstractApiClient):
     def __init__(
             self,
             timeout=30,
@@ -85,10 +86,12 @@ class DOUYINClient:
         headers = headers or self.headers
         return await self.request(method="POST", url=f"{self._host}{uri}", data=data, headers=headers)
 
-    @staticmethod
-    async def pong(browser_context: BrowserContext) -> bool:
+    async def pong(self, browser_context: BrowserContext) -> bool:
+        local_storage = await self.playwright_page.evaluate("() => window.localStorage")
+        if local_storage.get("HasUserLogin", "") == "1":
+            return True
+
         _, cookie_dict = utils.convert_cookies(await browser_context.cookies())
-        # todo send some api to test login status
         return cookie_dict.get("LOGIN_STATUS") == "1"
 
     async def update_cookies(self, browser_context: BrowserContext):
@@ -195,4 +198,40 @@ class DOUYINClient:
             if not is_fetch_sub_comments:
                 continue
             # todo fetch sub comments
+        return result
+
+    async def get_user_info(self, sec_user_id: str):
+        uri = "/aweme/v1/web/user/profile/other/"
+        params = {
+            "sec_user_id": sec_user_id,
+            "publish_video_strategy_type": 2,
+            "personal_center_strategy": 1,
+        }
+        return await self.get(uri, params)
+
+    async def get_user_aweme_posts(self, sec_user_id: str, max_cursor: str = "") -> Dict:
+        uri = "/aweme/v1/web/aweme/post/"
+        params = {
+            "sec_user_id": sec_user_id,
+            "count": 18,
+            "max_cursor": max_cursor,
+            "locate_query": "false",
+            "publish_video_strategy_type": 2
+        }
+        return await self.get(uri, params)
+
+    async def get_all_user_aweme_posts(self, sec_user_id: str, callback: Optional[Callable] = None):
+        posts_has_more = 1
+        max_cursor = ""
+        result = []
+        while posts_has_more == 1:
+            aweme_post_res = await self.get_user_aweme_posts(sec_user_id, max_cursor)
+            posts_has_more = aweme_post_res.get("has_more", 0)
+            max_cursor = aweme_post_res.get("max_cursor")
+            aweme_list = aweme_post_res.get("aweme_list") if aweme_post_res.get("aweme_list") else []
+            utils.logger.info(
+                f"[DOUYINClient.get_all_user_aweme_posts] got sec_user_id:{sec_user_id} video len : {len(aweme_list)}")
+            if callback:
+                await callback(aweme_list)
+            result.extend(aweme_list)
         return result
