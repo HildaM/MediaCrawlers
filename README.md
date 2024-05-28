@@ -1,10 +1,8 @@
 > **免责声明：**
 > 
-> 大家请以学习为目的使用本仓库，爬虫违法违规的案件：https://github.com/HiddenStrawberry/Crawler_Illegal_Cases_In_China  <br>
 >
 >本仓库的所有内容仅供学习和参考之用，禁止用于商业用途。任何人或组织不得将本仓库的内容用于非法用途或侵犯他人合法权益。本仓库所涉及的爬虫技术仅用于学习和研究，不得用于对其他平台进行大规模爬虫或其他非法行为。对于因使用本仓库内容而引起的任何法律责任，本仓库不承担任何责任。使用本仓库的内容即表示您同意本免责声明的所有条款和条件。
 
-> 点击查看更为详细的免责声明。[点击跳转](#disclaimer)
 # 仓库描述
 
 **小红书爬虫**，**抖音爬虫**， **快手爬虫**， **B站爬虫**， **微博爬虫**...。  
@@ -82,46 +80,6 @@
 - 支持保存到json中（data/目录下）
 
 
-## 开发者服务
-- 付费咨询：提供 200 元/小时的咨询服务，帮你快速解决项目中遇到的问题。
-- 知识星球：沉淀高质量常见问题、最佳实践文档、多年编程+爬虫经验分享，提供付费知识星球服务，主动提问，作者会定期回答问题
-  <p><img alt="知识星球" src="static/images/xingqiu.jpeg" style="width: 100%;" ></p>
-- 课程服务：
-  > 如果你想很快入门这个项目，或者想了具体实现原理，我推荐你看看这个课程，从设计出发一步步带你如何使用，门槛大大降低，同时也是对我开源的支持，如果你能支持我的课程，我将会非常开心～<br>
-  > 课程售价非常非常的便宜，几杯咖啡的事儿.<br>
-  > 课程介绍飞书文档链接：https://relakkes.feishu.cn/wiki/JUgBwdhIeiSbAwkFCLkciHdAnhh
-
-
-
-## 感谢下列Sponsors对本仓库赞助
-<a href="https://sider.ai/ad-land-redirect?source=github&p1=mi&p2=kk">通过注册这个款免费的GPT助手，帮我获取GPT4额度作为支持。也是我每天在用的一款chrome AI助手插件</a>
-<a href="https://sider.ai/ad-land-redirect?source=github&p1=mi&p2=kk" target="_blank"><img src="https://s2.loli.net/2024/04/01/jK8drZ2bxTg67q9.png" ></a>
-
-成为赞助者，展示你的产品在这里，联系作者：relakkes@gmail.com
-
-
-
-## MediaCrawler爬虫项目交流群：
-> 7天有效期，自动更新, 如果人满了可以加作者wx拉进群: yzglan，备注来自github.
-
-<div style="max-width: 200px">  
-<p><img alt="9群二维码" src="static/images/9群二维码.PNG" style="width: 200px;height: 100%" ></p>
-</div>
-
-
-## 打赏
-免费开源不易，如果项目帮到你了，可以给我打赏哦，您的支持就是我最大的动力！
-<div style="display: flex;justify-content: space-between;width: 100%">
-    <p><img alt="打赏-微信" src="static/images/wechat_pay.jpeg" style="width: 200px;height: 100%" ></p>
-    <p><img alt="打赏-支付宝" src="static/images/zfb_pay.png"   style="width: 200px;height: 100%" ></p>
-</div>
-
-## 爬虫入门课程
-我新开的爬虫教程Github仓库 [CrawlerTutorial](https://github.com/NanmiCoder/CrawlerTutorial) ，感兴趣的朋友可以关注一下，持续更新，主打一个免费.
-
-
-## 运行报错常见问题Q&A
-> 遇到问题先自行搜索解决下，现在AI很火，用ChatGPT大多情况下能解决你的问题 [免费的ChatGPT](https://sider.ai/ad-land-redirect?source=github&p1=mi&p2=kk)  
 
 ➡️➡️➡️ [常见问题](docs/常见问题.md)
 
@@ -134,12 +92,6 @@
 ## 手机号登录说明
 ➡️➡️➡️ [手机号登录说明](docs/手机号登录说明.md)
 
-
-
-## star 趋势图
-- 如果该项目对你有帮助，star一下 ❤️❤️❤️
-
-[![Star History Chart](https://api.star-history.com/svg?repos=NanmiCoder/MediaCrawler&type=Date)](https://star-history.com/#NanmiCoder/MediaCrawler&Date)
 
 
 
